@@ -44,26 +44,27 @@ app.use(compression());
 // Static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Database connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/ecommerce')
-  .then(async () => {
-    console.log('MongoDB Connected Successfully');
-    // Verify email configuration on startup
-    if (process.env.SMTP_USER && process.env.SMTP_PASSWORD) {
-      const { emailService } = require('./services');
-      try {
-        await emailService.verifyEmailConfig();
-      } catch (error) {
-        console.warn('Email configuration verification failed. Email features may not work. Please check your SMTP credentials.');
+// Database connection (skip automatic connection when running on Vercel)
+if (!process.env.VERCEL) {
+  mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/ecommerce')
+    .then(async () => {
+      console.log('MongoDB Connected Successfully (Local Startup)');
+      // Verify email configuration on startup
+      if (process.env.SMTP_USER && process.env.SMTP_PASSWORD) {
+        const { emailService } = require('./services');
+        try {
+          await emailService.verifyEmailConfig();
+        } catch (error) {
+          console.warn('Email configuration verification failed. Email features may not work. Please check your SMTP credentials.');
+        }
+      } else {
+        console.warn('Email configuration not found. Email features will be disabled.');
       }
-    } else {
-      console.warn('Email configuration not found. Email features will be disabled.');
-    }
-  })
-  .catch(err => {
-    console.error('MongoDB Connection Error:', err);
-    // On serverless platforms (like Vercel), avoid process.exit which crashes the function.
-  });
+    })
+    .catch(err => {
+      console.error('MongoDB Connection Error:', err);
+    });
+}
 
 // Import routes
 const authRoutes = require('./routes/auth.routes');
@@ -118,7 +119,7 @@ app.use((req, res) => {
 // Global error handler
 app.use((err, req, res, next) => {
   console.error('Error:', err);
-  
+
   // Mongoose validation error
   if (err.name === 'ValidationError') {
     const messages = Object.values(err.errors).map(val => val.message);
@@ -128,7 +129,7 @@ app.use((err, req, res, next) => {
       errors: messages
     });
   }
-  
+
   // Mongoose duplicate key error
   if (err.code === 11000) {
     return res.status(400).json({
@@ -136,7 +137,7 @@ app.use((err, req, res, next) => {
       message: 'Duplicate field value entered'
     });
   }
-  
+
   // Mongoose cast error (invalid ObjectId)
   if (err.name === 'CastError') {
     return res.status(400).json({
@@ -144,7 +145,7 @@ app.use((err, req, res, next) => {
       message: `Resource not found with id: ${err.value}`
     });
   }
-  
+
   // JWT errors
   if (err.name === 'JsonWebTokenError') {
     return res.status(401).json({
@@ -152,14 +153,14 @@ app.use((err, req, res, next) => {
       message: 'Invalid token'
     });
   }
-  
+
   if (err.name === 'TokenExpiredError') {
     return res.status(401).json({
       success: false,
       message: 'Token expired'
     });
   }
-  
+
   res.status(err.statusCode || 500).json({
     success: false,
     message: err.message || 'Internal Server Error'

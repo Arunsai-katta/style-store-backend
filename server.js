@@ -80,6 +80,11 @@ const paymentRoutes = require('./routes/payment.routes');
 const uploadRoutes = require('./routes/upload.routes');
 
 // API Routes
+app.get('/', (req, res) => {
+  res.json({
+    message: "Server running"
+  });
+});
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/products', productRoutes);

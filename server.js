@@ -62,7 +62,7 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/ecommerce
   })
   .catch(err => {
     console.error('MongoDB Connection Error:', err);
-    process.exit(1);
+    // On serverless platforms (like Vercel), avoid process.exit which crashes the function.
   });
 
 // Import routes

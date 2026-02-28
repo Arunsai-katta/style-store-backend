@@ -20,9 +20,8 @@ app.use(helmet({
 }));
 
 // CORS configuration
-const allowedOrigin = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
 app.use(cors({
-  origin: "http://localhost:3000",
+  origin: '*', // Allow all origins (adjust in production)
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']

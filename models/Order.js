@@ -90,7 +90,7 @@ const paymentDetailsSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'completed', 'failed', 'refunded', 'partially_refunded'],
+    enum: ['pending', 'partially_paid', 'completed', 'failed', 'refunded', 'partially_refunded'],
     default: 'pending'
   },
   razorpayOrderId: {

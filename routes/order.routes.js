@@ -12,6 +12,7 @@ router.get('/', orderController.getOrders);
 router.get('/number/:orderNumber', orderController.getOrderByNumber);
 router.get('/:id/tracking', orderController.getTracking);
 router.get('/:id', orderController.getOrder);
+router.post('/:id/retry-payment', orderController.retryPayment);
 router.put('/:id/cancel', orderController.cancelOrder);
 
 // Admin routes

@@ -22,7 +22,7 @@ app.use(helmet({
 // CORS configuration
 const allowedOrigin = process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
 app.use(cors({
-  origin: allowedOrigin,
+  origin: "http://localhost:3000",
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -173,6 +173,60 @@ if (!process.env.VERCEL) {
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+
+    // Auto-cancel stale pending Razorpay orders every 15 minutes
+    const Order = require('./models/Order');
+    const Product = require('./models/Product');
+    const STALE_ORDER_MINUTES = parseInt(process.env.STALE_ORDER_MINUTES) || 30;
+
+    const cancelStaleOrders = async () => {
+      try {
+        const cutoff = new Date(Date.now() - STALE_ORDER_MINUTES * 60 * 1000);
+        const staleOrders = await Order.find({
+          status: 'pending',
+          'payment.method': 'razorpay',
+          'payment.status': 'pending',
+          createdAt: { $lt: cutoff }
+        });
+
+        for (const order of staleOrders) {
+          // Restore stock
+          for (const item of order.items) {
+            await Product.updateOne(
+              {
+                _id: item.product,
+                'colorVariants.colorName': item.colorVariant.colorName
+              },
+              {
+                $inc: {
+                  'colorVariants.$[cv].sizes.$[sz].quantity': item.quantity
+                }
+              },
+              {
+                arrayFilters: [
+                  { 'cv.colorName': item.colorVariant.colorName },
+                  { 'sz.size': item.size }
+                ]
+              }
+            );
+          }
+
+          await Order.findByIdAndDelete(order._id);
+          console.log(`Deleted stale unpaid order: ${order.orderNumber}`);
+        }
+
+        if (staleOrders.length > 0) {
+          console.log(`Deleted ${staleOrders.length} stale pending order(s)`);
+        }
+      } catch (error) {
+        console.error('Error cleaning up stale orders:', error);
+      }
+    };
+
+    // Run cleanup every 15 minutes
+    setInterval(cancelStaleOrders, 15 * 60 * 1000);
+    // Also run once on startup after a short delay
+    setTimeout(cancelStaleOrders, 10 * 1000);
   });
 }
 

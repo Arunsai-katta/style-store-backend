@@ -179,8 +179,8 @@ const returnSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Generate return number before saving
-returnSchema.pre('save', async function (next) {
+// Generate return number before validation so the `required` check passes
+returnSchema.pre('validate', async function (next) {
   if (!this.returnNumber) {
     const prefix = 'RET';
     const timestamp = Date.now().toString(36).toUpperCase();

@@ -117,15 +117,25 @@ exports.createOrder = asyncHandler(async (req, res) => {
       ...(paymentMethod === 'cod' && req.body.codAdvancePaymentId ? {
         razorpayPaymentId: req.body.codAdvancePaymentId,
         codAdvanceAmount: parseFloat(req.body.codAdvanceAmount) || 0,
-        status: 'completed'  // advance was already verified before createOrder is called
+        status: 'partially_paid'  // only advance amount paid, rest is COD
       } : {})
     },
     pricing: {
       subtotal,
       shippingCost,
       total
-    }
+    },
+    // COD orders with advance payment are immediately confirmed
+    ...(paymentMethod === 'cod' && req.body.codAdvancePaymentId ? {
+      status: 'confirmed'
+    } : {})
   });
+
+  // Add timeline event for COD orders
+  if (paymentMethod === 'cod' && req.body.codAdvancePaymentId) {
+    order.addTimelineEvent('confirmed', 'Order confirmed with COD advance payment');
+    await order.save();
+  }
 
   // Handle payment based on method
   let paymentData = null;
@@ -237,6 +247,47 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
     success: true,
     message: 'Payment verified successfully',
     order
+  });
+});
+
+// @desc    Retry payment for a pending Razorpay order
+// @route   POST /api/orders/:id/retry-payment
+// @access  Private
+exports.retryPayment = asyncHandler(async (req, res) => {
+  const order = await Order.findOne({
+    _id: req.params.id,
+    user: req.userId
+  });
+
+  if (!order) {
+    throw new AppError('Order not found', 404);
+  }
+
+  if (order.status !== 'pending' || order.payment.method !== 'razorpay' || order.payment.status !== 'pending') {
+    throw new AppError('This order cannot be retried for payment', 400);
+  }
+
+  // Check if previous Razorpay order is still valid, or create a new one
+  let paymentData;
+  try {
+    // Create a fresh Razorpay order for the same amount
+    paymentData = await razorpayService.createOrder(
+      order.pricing.total,
+      order.orderNumber,
+      { orderId: order._id.toString() }
+    );
+
+    // Update the order with the new Razorpay order ID
+    order.payment.razorpayOrderId = paymentData.orderId;
+    await order.save();
+  } catch (error) {
+    throw new AppError('Failed to initiate payment. Please try again.', 500);
+  }
+
+  res.status(200).json({
+    success: true,
+    order,
+    paymentData
   });
 });
 

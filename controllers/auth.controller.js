@@ -1,16 +1,70 @@
-const { User } = require('../models');
+const { User, Otp } = require('../models');
 const { asyncHandler, AppError } = require('../middleware/errorHandler');
 const { sendTokenResponse } = require('../middleware/auth');
 const { emailService } = require('../services');
 const crypto = require('crypto');
 
+// @desc    Send OTP to email
+// @route   POST /api/auth/send-otp
+// @access  Public
+exports.sendOtp = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    throw new AppError('Please provide an email address', 400);
+  }
+
+  // Check if user already exists
+  const existingUser = await User.findOne({ email });
+  if (existingUser) {
+    throw new AppError('Email already registered', 400);
+  }
+
+  // Generate 6-digit OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+  // Save OTP in the database (upsert to overwrite any existing OTPs for this email)
+  await Otp.findOneAndUpdate(
+    { email },
+    { otp, createdAt: Date.now() },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+
+  // Send OTP via email
+  try {
+    await emailService.sendOtpEmail(email, otp);
+  } catch (err) {
+    console.error('Failed to send OTP email:', err);
+    throw new AppError('Failed to send OTP email. Please try again.', 500);
+  }
+
+  res.status(200).json({
+    success: true,
+    message: 'OTP sent successfully to ' + email
+  });
+});
+
 // @desc    Register new user
 // @route   POST /api/auth/register
 // @access  Public
 exports.register = asyncHandler(async (req, res) => {
-  const { name, email, phone, password } = req.body;
+  const { name, email, phone, password, otp } = req.body;
 
-  // Check if user exists
+  if (!otp) {
+    throw new AppError('Please provide the OTP sent to your email', 400);
+  }
+
+  // Verify OTP
+  const otpRecord = await Otp.findOne({ email });
+  if (!otpRecord) {
+    throw new AppError('OTP expired or not found. Please request a new one.', 400);
+  }
+
+  if (otpRecord.otp !== otp) {
+    throw new AppError('Invalid OTP', 400);
+  }
+
+  // Check if user exists (edge case check again)
   const existingUser = await User.findOne({ email });
   if (existingUser) {
     throw new AppError('Email already registered', 400);
@@ -21,31 +75,12 @@ exports.register = asyncHandler(async (req, res) => {
     name,
     email,
     phone,
-    password
+    password,
+    emailVerified: true // Set to true since OTP was just verified
   });
 
-  // Generate email verification token
-  const verifyToken = crypto.randomBytes(32).toString('hex');
-  user.emailVerifyToken = crypto.createHash('sha256').update(verifyToken).digest('hex');
-  user.emailVerifyExpire = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
-  await user.save({ validateBeforeSave: false });
-
-  // Send verification email (non-blocking — registration succeeds even if email fails)
-  try {
-    const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verifyToken}`;
-    await emailService.sendEmail({
-      to: user.email,
-      subject: 'Verify your StyleStore email',
-      html: `
-        <p>Hi ${user.name},</p>
-        <p>Please verify your email address by clicking the link below. It expires in 24 hours.</p>
-        <a href="${verifyUrl}" style="background:#000;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">Verify Email</a>
-        <p>If you didn't create an account, you can safely ignore this email.</p>
-      `
-    });
-  } catch (err) {
-    console.error('Verification email send failed:', err.message);
-  }
+  // Delete the OTP record after successful registration
+  await Otp.deleteOne({ email });
 
   // Send token response
   sendTokenResponse(user, 201, res);

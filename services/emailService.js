@@ -138,22 +138,21 @@ const sendPasswordResetEmail = async (email, resetToken, userName = 'User') => {
   }
 };
 
-// Send welcome email (optional, for future use)
-const sendWelcomeEmail = async (email, userName) => {
+const sendOtpEmail = async (email, otp) => {
   try {
     const transporter = createTransporter();
 
     const mailOptions = {
       from: `"${process.env.EMAIL_FROM_NAME || 'StyleStore'}" <${process.env.SMTP_USER}>`,
       to: email,
-      subject: 'Welcome to StyleStore!',
+      subject: 'Your Registration OTP - StyleStore',
       html: `
         <!DOCTYPE html>
         <html>
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Welcome</title>
+          <title>Your OTP Code</title>
         </head>
         <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
           <table role="presentation" style="width: 100%; border-collapse: collapse;">
@@ -170,27 +169,29 @@ const sendWelcomeEmail = async (email, userName) => {
                   <tr>
                     <td>
                       <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 24px;">
-                        Welcome to StyleStore!
+                        Your Verification Code
                       </h2>
                       <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
-                        Hello ${userName},
+                        Hello,
                       </p>
                       <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
-                        Thank you for joining StyleStore! We're excited to have you as part of our community.
-                      </p>
-                      <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
-                        Start shopping now and discover our premium collection of t-shirts, hoodies, and sweatshirts.
+                        Please use the following OTP to complete your registration process:
                       </p>
                       <table role="presentation" style="width: 100%; margin: 30px 0;">
                         <tr>
                           <td style="text-align: center;">
-                            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/shop" 
-                               style="display: inline-block; padding: 14px 32px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
-                              Start Shopping
-                            </a>
+                            <span style="display: inline-block; padding: 14px 32px; background-color: #f3f4f6; color: #111827; border-radius: 8px; font-weight: bold; font-size: 24px; letter-spacing: 4px;">
+                              ${otp}
+                            </span>
                           </td>
                         </tr>
                       </table>
+                      <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 30px 0 0 0;">
+                        This code will expire in 10 minutes.
+                      </p>
+                      <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin: 20px 0 0 0;">
+                        If you didn't request this, you can safely ignore this email.
+                      </p>
                     </td>
                   </tr>
                 </table>
@@ -210,11 +211,11 @@ const sendWelcomeEmail = async (email, userName) => {
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log('Welcome email sent:', info.messageId);
+    console.log('OTP email sent:', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error('Error sending welcome email:', error);
-    throw new Error('Failed to send welcome email');
+    console.error('Error sending OTP email:', error);
+    throw new Error('Failed to send OTP email');
   }
 };
 
@@ -222,7 +223,7 @@ module.exports = {
   createTransporter,
   verifyEmailConfig,
   sendPasswordResetEmail,
-  sendWelcomeEmail,
+  sendOtpEmail,
   // Generic helper: sendEmail({ to, subject, html, text })
   sendEmail: async ({ to, subject, html, text }) => {
     const transporter = createTransporter();

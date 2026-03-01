@@ -7,9 +7,5 @@ const { protect, adminOnly } = require('../middleware/auth');
 router.use(protect, adminOnly);
 
 router.get('/stats', dashboardController.getDashboardStats);
-router.get('/sales', dashboardController.getSalesStats);
-router.get('/products', dashboardController.getProductStats);
-router.get('/customers', dashboardController.getCustomerStats);
-router.get('/orders', dashboardController.getOrderStats);
 
 module.exports = router;

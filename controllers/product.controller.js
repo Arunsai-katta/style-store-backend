@@ -406,7 +406,7 @@ exports.toggleFeatured = asyncHandler(async (req, res) => {
 // @route   GET /api/products/admin/all
 // @access  Private/Admin
 exports.getAllProductsAdmin = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 20, search, stockAlert } = req.query;
+  const { page = 1, limit = 20, search, category, lowStock } = req.query;
 
   const query = {};
 
@@ -417,8 +417,12 @@ exports.getAllProductsAdmin = asyncHandler(async (req, res) => {
     ];
   }
 
+  if (category) {
+    query.category = category;
+  }
+
   // Get products with low stock
-  if (stockAlert === 'true') {
+  if (lowStock === 'true') {
     query.$expr = {
       $lt: [
         { $sum: { $map: { input: '$colorVariants', as: 'cv', in: { $sum: '$$cv.sizes.quantity' } } } },
